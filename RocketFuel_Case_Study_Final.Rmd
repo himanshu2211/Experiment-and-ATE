@@ -1,0 +1,320 @@
+---
+title: "RocketFuel Case Study"
+author: "Himanshu Malik"
+date: "2022-10-30"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+rm(list = ls()) # Clear the workspace
+```
+
+### Load the data and take a first look
+
+Load the libraries we want and the RocketFuel Case Data
+
+```{r}
+library(readxl)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+library(dplyr)
+
+# read raw data file
+casedata <- read.csv('rocketfuel_deciles.csv')    # I named my data casedata.  
+```
+
+
+```{r}
+summary(casedata)
+```
+
+We might actually prefer to use the psych package and its command "describe", which organizes things a little differently and includes standard deviations.
+
+```{r}
+library(psych)
+psych::describe(casedata)
+```
+## Statistical Summary 
+As mentioned in the data set there are 7 variables. The average tot_impr (total number of ad impressions the user encountered) is about 25 while the median is 13. The minimum impressions received by a user is 1 and maximum is 2065.
+
+## Tabulating the treatment & Control groups
+```{r}
+#Output a table of summary statistics (min,max, mean, s.d.) for all the variables.
+sumtb<- matrix(NA,nrow = 4, ncol = 7  )
+# define a empty matrix to save the means and sd's
+# let the number of row = 2 and the number of columns = that in clinicsales
+rownames(sumtb) <- c("min", "max","mean", "sd")   # name the rows
+colnames(sumtb) <- colnames(casedata)  # name the columns by the column names in clinicsales
+sumtb[1,] <- round(apply(casedata,2,min),2)   #putting the min's of each variable into the first row
+sumtb[2,] <- round(apply(casedata,2,max),2)  # putting the max's into the second row
+sumtb[3,] <- round(apply(casedata,2,mean),2)  # put the mean of each variable into the first row of sumtb
+# Note: use round(command, X) to limit to X decimal places
+# Note: use apply(df,margin, f) to apply function f to dataframe df on margin (1 for rows and 2 for columns) using function f (in this case mean)
+sumtb[4,] <- round(apply(casedata,2,sd),2) # put the s.d.'s into the second row
+sumtb <- sumtb[,2:7] # rule out the first column since user_id is not meaningful to summarize. 
+kable(sumtb)  # make the output matrix as a table
+```
+
+### Summary Treatment Groups
+
+Now we want to tabulate the data so we can see the proportions in each of the treatment groups.
+
+As given in the case study also 4% of the population is considered as control group where the users will be shown PSA ads and the remaining is considered as treatment group(shown brand ads).
+
+##Calculating the mean and check how it varies between control and treatment group.
+
+```{r}
+attach(casedata) # attach our dataset to simply call variables without "$" 
+
+tb_treatment<-matrix(NA, nrow = 2, ncol = 2) # create a empty output matrix with 2 rows (for Frequency, i.e., count, and Proportion) and the 4 groups 
+tb_treatment[1,] <- round(table(test),0) # counts in treatment. It will order the treatment from lowest to highest as it makes the table.
+tb_treatment[2,] <- round(prop.table(table(test)),3) # proportion in treatments
+
+rownames(tb_treatment) <- c("Frequency", "Proportion" ) # name the rows
+colnames(tb_treatment) <- c("Control", "Treatment")  # name the columns
+kable(tb_treatment) # make a table
+```
+
+
+## Creating a table of Means.
+
+```{r}
+attach(casedata)
+# create a data frame with the treatment variables and the pre-treatment variables
+preexp <- casedata %>%  # This pipe function requires the library(dplyr) called at the start
+  select(tot_impr, mode_impr_day , mode_impr_hour	) # only use these variable for summary in RocketFuel Case.
+
+# Summarize the means of those variables by treatment (rounded to 2 decimals again)
+tb_preexp <- matrix(NA, nrow = 3, ncol = 2) # define the empty output matrix
+colnames(tb_preexp) <- c( "Mean Control", "Mean treatment") # name the columns
+rownames(tb_preexp) <- colnames(preexp) # name the rows
+
+m<-as.matrix(round(aggregate(.~test,preexp,mean),2)) # The .~treatment notation means summarize all variables by treatment. And then store the outputs as a matrix by as.matrix
+
+tb_preexp[,1:2] <-t(m)[2:4,]  # traspose the matrix and delete the treatment row
+
+kable(tb_preexp) # This requires the library(knitr) called at the start
+
+```
+
+## Creating a table of Standard Deviations.
+
+```{r}
+attach(casedata)
+# create a data frame with the treatment variables and the pre-treatment variables
+preexp <- casedata %>%  # This pipe function requires the library(dplyr) called at the start
+  select(tot_impr, mode_impr_day , mode_impr_hour	) # only use these variable for summary 
+
+# Summarize the means of those variables by treatment (rounded to 2 decimals again)
+tb_preexp <- matrix(NA, nrow = 3, ncol = 2) # define the empty output matrix
+colnames(tb_preexp) <- c( "SD Control", "SD treatment") # name the columns
+rownames(tb_preexp) <- colnames(preexp) # name the rows
+
+msd<-as.matrix(round(aggregate(.~test,preexp,sd),3)) # The .~treatment notation means summarize all variables by treatment. And then store the outputs as a matrix by as.matrix
+
+tb_preexp[,1:2] <-t(msd)[2:4,]  # traspose the matrix and delete the treatment row
+
+kable(tb_preexp) # This requires the library(knitr) called at the start
+
+```
+
+From the tables above we can see that the data looks balanced. The values of averages and standard deviation are similar across control and treatment group.
+
+
+#Plotting histogram.
+
+Plotting histogram on pre treatment variables to check the distribution.
+
+```{r}
+#create histogram
+attach(casedata)
+par(mfrow=c(3,3)) # output multiple subfigures into one figure, with 2 subfigures each row and 3 rows (one for each treatment) in total
+
+hist(tot_impr[test==0], main = paste("Total number of ad impressions"), xlab = "Control") 
+#plot the histogram of numdoctors for control group
+hist(mode_impr_day[test==0], main = paste("Day when encountered most ad"), xlab = "Control")#plot the histogram of avgpanelsize for control group
+hist(mode_impr_hour[test==0], main = paste("Hour when encountered most ad"), xlab = "Control")
+
+hist(tot_impr[test==1], main = paste("Total number of ad impressions"), xlab = "Treatment") 
+#plot the histogram of numdoctors for control group
+hist(mode_impr_day[test==1], main = paste("Day when encountered most ad"), xlab = "Treatment")#plot the histogram of avgpanelsize for control group
+hist(mode_impr_hour[test==1], main = paste("Hour when encountered most ad"), xlab = "Treatment")
+
+detach(casedata)
+```
+
+The histogram shows that the distributions are quite similar even though the frequencies varies a lot.
+
+##creating a summary table
+
+This table has the means and confidence interval for the outcome of all the treatments.
+
+```{r}
+attach(casedata)
+# Create a summary table
+summary <- casedata %>%  #create a table called summary that will hold the info that starts with the data set
+  mutate(test = as.factor(test)) %>%        #and then tell R that treatment is a factor variable taking discrete levels.
+  group_by(test) %>%        # and then create groups by treatment
+  summarise(n = length(user_id),            # create a new table with summary measures
+            mean.converted = round(mean(converted),2),         # get the mean for each group (the ,2 is to do 2 decimals)
+            error.converted = round(sd(converted)/sqrt(n),3),  # calculate the standard error on the mean using the standard deviation divided by square root of n in each group
+            LCI.converted = round(mean.converted - 1.96*error.converted,3),    # calulate confidence interval boundaries
+            UCI.converted = round(mean.converted + 1.96*error.converted,3))
+
+kable(summary) # this code outputs the table in a readable format
+
+detach(casedata)
+```
+We can see that the average number conversions is higher in the treatment group in comparison to the control group.
+
+#Plotting the information from the Summary Table.
+
+
+```{r}
+# Plot the information from that summary table
+summary %>%
+  ggplot(aes(x=test)) +
+  geom_point(aes(y = mean.converted), size = 2) +
+  scale_shape_manual(values=c(15, 16)) +
+  ggtitle("Average Units conversion by Treatment") +
+  ylab("Numbers purchased") + xlab("Test Type") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.line = element_line(colour = "black"), 
+        axis.text.x= element_text(size = 10), legend.position=c(.5,.5),
+        plot.title=element_text(hjust=.5))+
+  geom_errorbar(aes(ymin = LCI.converted,
+                    ymax = UCI.converted), width = .3)+
+  scale_color_manual(values=c("darkgrey","black"))
+```
+The confidence interval for the treatment group is tighter(smaller) than the control group. The confidence interval for our control group lies between 0.018 - 0.022 (approximately) while the confidence interval of our treatment group comes out to be 0.30 (a single value) because the data set has around 96% value for treatment group. This makes sense according to the data given. This is also the reason for large confidence interval of control group and a very small confidence interval (value) for treatment group.
+
+## Calculating the Average Treatment effect 
+```{r}
+attach(casedata)
+ATE <-matrix(NA, nrow = 1, ncol = 4)  # create an empty matrix to store the results
+colnames(ATE) <- c("Control Mean","Treatment ATE", "Treatment LCI", "Treatment UCI")  # name the columns
+rownames(ATE) <- c("Conversions") # name the rows
+mean.control <- t(summary[1,3])  # call the means from summary table
+mean.treat1 <- t(summary[2,3])
+ATE[,1] <- round(mean.control,4)
+ATE[,2] <- effect.treat1 <- round(mean.treat1-mean.control,4)  # calculate ATE for treatment1
+#now calculate sd to construct CI for each outcome variables
+#first, we make the s.d. of outcomes as a vector in each treatment condition
+sd.control <- t(summary[1,4])
+sd.treat1 <- t(summary[2,4])
+
+#then construct the s.d. for computing CI based on the s.d. vector we just created
+error.treat1 <- sqrt(sd.control^2+sd.treat1^2)
+
+#computing CI
+ATE[,3]<-LCI.treat1 <- round(effect.treat1 -1.96*error.treat1,4)
+ATE[,4]<-UCI.treat1 <- round(effect.treat1 +1.96*error.treat1,4)
+
+kable(ATE)
+```
+We can see that for Treatment ATE is positive by a value of 0.01. It means treatment is better than control. 
+
+## Calculating ATE again using the regression approach.
+
+```{r}
+#Start by creating two "dummy variables" in our dataframe to indicate the two treatments
+casedata$treat <- as.numeric(casedata$test == 1)
+
+# We need to estimate standard errors that allow for heteroskedasticy (i.e., different standard errors for each treatment). R does not do this easily by default.  The lmtest and sandwich libraries provide a widely-used approach for that.
+library("lmtest")
+
+library("sandwich")
+
+# Let's do the regression on pageviews first 
+fit.converted <- lm(converted~treat + tot_impr + mode_impr_day + mode_impr_hour , data = casedata)  #Simple linear regression
+# Now we report the point estimates and standard errors for each parameter by coeftest()
+coeftest(fit.converted, vcov = vcovHC(fit.converted, type = "HC3"))
+coefci(fit.converted, vcov = vcovHC(fit.converted)) #get the according CIs by coefci()
+```
+## 
+Create summary table showing, mean and standard deviation of variables in the dataset for both control and treatment group. 
+
+```{r}
+
+summary_lt <- data.frame(matrix(ncol = 9, nrow = 0))
+for (x in 1:10) {
+impr_data <- casedata[ which(casedata$tot_impr_decile == x),]
+summary_chain = impr_data %>%  
+  mutate(test = as.factor(test)) %>%        
+  group_by(test) %>%       
+  summarise(n = length(user_id),            
+            mean.converted = round(mean(converted),2),         
+            mean.tot_impr = round(mean(tot_impr),2),
+            mean.mode_impr_day = round(mean(mode_impr_day),2),
+            mean.mode_impr_hour = round(mean(mode_impr_hour),2),
+            sd.converted =  round(sd(converted),2),
+            sd.tot_impr =  round(sd(tot_impr),2),
+            sd.mode_impr_day =  round(sd(mode_impr_day),2),
+            sd.mode_impr_hour =  round(sd(mode_impr_hour),2)
+            )
+summary_chain$tot_impr_decile <- c(x,x)
+summary_chain <- t(summary_chain)
+print(kable(summary_chain))
+summary_lt <- append(summary_lt,summary_chain)
+}
+```
+
+constructed the summary list.
+
+## Dividing people into 10 deciles.
+Data separated into 10 deciles.
+
+```{r}
+attach(casedata)
+tb_treatment_sub <- matrix(NA, nrow = 20, ncol = 2) # create an empty output matrix with 2 rows (for Frequency, i.e., count, and Proportion) and the 3 groups 
+tb_treatment_sub[c(1,3,5,7,9,11,13,15,17,19),] <- format(t(table(test,tot_impr_decile)), digits = 1) # counts in treatment. It will order the treatment from lowest to highest as it makes the table.
+# use format() to control the digits in report table
+# use t() to transpose the matrix
+tb_treatment_sub[c(2,4,6,8,10,12,14,16,18,20),] <- format(t(prop.table(table(test,tot_impr_decile))),digits = 3) # proportion in treatments
+
+rownames(tb_treatment_sub) <- c("Frequency in Group 1", "Proportion in Group 1" ,"Frequency in Group 2", "Proportion in Group 2", "Frequency in Group 3", "Proportion in Group 3", "Frequency in Group 4", "Proportion in Group 4", "Frequency in Group 5", "Proportion in Group 5", "Frequency in Group 6", "Proportion in Group 6", "Frequency in Group 7", "Proportion in Group 7", "Frequency in Group 8", "Proportion in Group 8", "Frequency in Group 9", "Proportion in Group 9", "Frequency in Group 10", "Proportion in Group 10" ) # name the rows
+colnames(tb_treatment_sub) <- c("Control", "Treatment")  # name the columns
+kable(tb_treatment_sub) # make a table
+```
+
+```{r}
+summary_new = casedata %>%  #create a new data frame that I am calling summary_new here from our casedata
+  mutate(test = as.factor(test)) %>%  #denote treatment is a factor variable
+  mutate(deciles = as.factor(tot_impr_decile)) %>% 
+  group_by(test,deciles) %>%        # create groups by treatment and restaurant type
+  summarise(n = length(user_id),            # create a new table with summary measures by these groups
+            m.converted = mean(converted),         # get the mean for each group
+            e.converted = sd(converted)/sqrt(n),
+            Lci.converted = m.converted - 1.96*e.converted,    # calculate confidence interval boundaries
+            Uci.converted = m.converted + 1.96*e.converted,)
+summary_new
+```
+
+## Ploting the three outcome metrics by treatment and deciles
+```{r}
+summary_new %>%  #start with our summary_new data frame
+  ggplot(aes(deciles)) + # we are going to plot
+  geom_point(aes(y = m.converted, shape = test, color = test), size = 3) +  #plot the averages and give it different shapes andcolors by treatment and set size = 3 (you can play with different sizes)
+  geom_errorbar(aes(ymin = Lci.converted,
+                    ymax = Uci.converted, color=test), width = .15)+  #Give it error bars with the same coloring by treatment
+  ggtitle("Average conversions by deciles") +  #Give it a title
+  ylab("average conversions") + xlab("Deciles") + #Label the axes
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),axis.line = element_line(colour = "black"), 
+        axis.text.x= element_text(size = 10),
+        plot.title=element_text(hjust=.5) ) +
+  #Now let's make the legend nicer. Need two lines here to tell it to remake the legend by both color and shape
+  # Note that's necessary because we told it in the geom_point line above to have shapes and colors by treatment
+  # If we only had one of those we would only need one of these lines of code.
+  scale_shape_discrete(name = "Treatment group", labels = c("Control", "Treatment"))+ 
+  scale_color_discrete(name = "Treatment group", labels = c("Control", "Treatment"))
+```
+
+We can conclude that advertising based on how the ads get targeted to different people is not as effective for the first 8 deciles but quite effective for the last two groups(from the outcome metrics graph v/s average conversion). So, we can say that overall advertising based on how the ads get targeted to different people has positive effect on treatment group. If we want to get better ROI, we should run the advertisement on the 9th and 10th group as they have a large gap in control and treatment conversion.
